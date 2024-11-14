@@ -1,0 +1,85 @@
+package com.gmail.alexejkrawez.live_2024_09_26.code_16_00;
+
+import java.util.Optional;
+
+@Controller
+@RequestMapping("/authors")
+public class AuthorController {
+
+    @Autowired
+    private final AuthorService authorService;
+
+
+    @GetMapping("/check-and-save-printable-copies")
+    public ResponseEntity<String> checkAndSavePrintableCopies(@RequestParam String bookId, @RequestParam int pageFormat) {
+        authorService.checkAndSavePrintableCopies(bookId, pageFormat);
+        return ResponseEntity.ok("Printable copies calculated and saved successfully!");
+    }
+}
+
+@Service
+@RequiredArgsConstructor
+@Log4j2
+public class AuthorService {
+
+    @Autowired
+    private BookRepository bookRepository;
+
+    @Autowired
+    private PaperServiceClient client;
+
+    public void checkAndSavePrintableCopies(String bookId, int pageFormat) {
+        Book book = bookRepository.findByIsbn(bookId);
+
+        BookPaperInfoDto dto = new BookPaperInfoDto(pageFormat, book.getPages());
+
+        AvailableRollsDto availableRolls  = client.getAvailableRolls(dto);
+        int printableCopies = calculateBooksToPrint(AvailableRollsDto, book.getPages());
+
+        updateBookInfo(book, printableCopies);
+    }
+
+    private int calculateBooksToPrint(AvailableRollsDto AvailableRollsDto, int bookPages) {
+        return Integer.MAX_VALUE; // что-то считается
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private void updateBookInfo(Book book, int printableCopies) {
+        book.setPrintableCopies(printableCopies);
+        bookRepository.save(book);
+    }
+
+}
+
+@FeignClient(name = "paper-service", url = "http://255.255.255.255:8082")
+public interface PaperServiceClient {
+    @GetMapping("/availabula")
+    AvailableRollsDto getAvailableRolls(@RequestParam BookPaperInfoDto bookPaperInfoDto);
+}
+
+
+@Entity
+@Table(name = "book")
+@Data
+public class Book {
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private String isbn;
+
+    private String title;
+
+    private int pages;
+
+    private int printableCopies;
+
+    @ManyToOne
+    @JoinColumn(name = "author_id")
+    private Author author;
+
+    // Getters and setters
+}
+
+
+public interface BookRepository extends JpaRepository<Book, String> {
+    Optional<Book> findByIsbn(String id);
+}
